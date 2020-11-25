@@ -150,7 +150,7 @@ def parse_lists(origin, whitelist=[]):
                         domains.add(domain)
                     else:
                         skipped += 1
-                        #print("Domain %s is whitelisted -> SKIPPING" % domain)
+
             if skipped > 0:
                 print("\t{} domains skipped from whitelist".format(skipped))
             print("\t{} domains".format(len(domains) - c))
