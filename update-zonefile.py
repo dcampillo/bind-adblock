@@ -110,7 +110,7 @@ def read_list(filename):
             return f.read()
 
 
-def parse_lists(origin):
+def parse_lists(origin, whitelist=[]):
     domains = set()
     origin_name = dns.name.from_text(origin)
     for l in config['lists']:
@@ -127,6 +127,7 @@ def parse_lists(origin):
             print("\t{} lines".format(len(lines)))
 
             c = len(domains)
+            skipped = 0
 
             for line in data.splitlines():
                 domain = ''
@@ -144,11 +145,19 @@ def parse_lists(origin):
 
                 domain = domain.strip()
                 if check_domain(domain, origin_name):
-                    domains.add(domain)
-
+                    # Check if the domain is whitelisted by the user
+                    if whitelist.count(domain) == 0:
+                        domains.add(domain)
+                    else:
+                        skipped += 1
+                        #print("Domain %s is whitelisted -> SKIPPING" % domain)
+            if skipped > 0:
+                print("\t{} domains skipped from whitelist".format(skipped))
             print("\t{} domains".format(len(domains) - c))
 
+    
     print("\nTotal\n\t{} domains".format(len(domains)))
+    
     return domains
 
 def load_zone(zonefile, origin, raw):
@@ -229,6 +238,21 @@ def save_zone(tmpzonefile, zonefile, origin, raw):
     else:
         shutil.move(str(tmpzonefile), str(zonefile))
 
+def load_whitelist(whitelistfilename):
+    whitelist = []
+    
+    if os.path.isfile(whitelistfilename):
+        lines = open(whitelistfilename, "r").readlines()
+        for line in lines:
+            cleanedupline = line.strip()
+            # Don't add # comments as whitelisted domain
+            if len(cleanedupline) > 0:
+                if cleanedupline[0] != '#':
+                    whitelist.append(cleanedupline)
+
+    print('Loaded {} domains from whitelist'.format(len(whitelist)))
+    return whitelist    
+
 def append_domain_to_zonefile(file, domain):
     if config['blocking_mode'] == 'NXDOMAIN' or "_" in domain:
         file.write(domain + ' IN CNAME .\n')
@@ -247,6 +271,9 @@ if __name__ == '__main__':
 
     os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
+    # Load whitelist
+    whitelist = load_whitelist('whitelist')
+
     if not config['cache'].is_dir():
         config['cache'].mkdir(parents=True)
 
@@ -256,7 +283,7 @@ if __name__ == '__main__':
     if args.empty:
         domains = set()
     else:
-        domains = parse_lists(args.origin)
+        domains = parse_lists(args.origin, whitelist)
 
     tmpzonefile = Path(config['cache'], 'tempzone')
     zone.to_file(str(tmpzonefile))
